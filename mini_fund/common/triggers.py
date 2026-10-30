@@ -57,8 +57,10 @@ class PhaseTriggers:
             if isinstance(offset, bool) or not isinstance(offset, (int, float)) or not math.isfinite(offset):
                 raise ValueError("offset_minutes must be a finite number.")
             anchor = spec["anchor"]
-            if anchor not in {"open", "close"}:
-                raise ValueError("anchor must be open or close.")
+            if anchor not in {"open", "close", "midpoint"}:
+                raise ValueError("anchor must be open, close or midpoint.")
+            if anchor == "midpoint" and phase != Phase.MID_SESSION:
+                raise ValueError("midpoint is reserved for mid_session.")
             if phase == Phase.BEFORE_OPEN and (anchor != "open" or offset >= 0):
                 raise ValueError("before_open must precede the opening.")
             if phase == Phase.BEFORE_CLOSE and (anchor != "close" or offset >= 0):
@@ -77,7 +79,10 @@ class PhaseTriggers:
 
     def target(self, phase, session):
         anchor, offset = self.plan[phase]
-        origin = session.opens if anchor == "open" else session.closes
+        opening, closing = aware(session.opens), aware(session.closes)
+        origin = opening if anchor == "open" else closing
+        if anchor == "midpoint":
+            origin = opening + (closing - opening) / 2
         return aware(origin) + timedelta(minutes=offset)
 
     def poll(self, clock, session_for, execute, emit):

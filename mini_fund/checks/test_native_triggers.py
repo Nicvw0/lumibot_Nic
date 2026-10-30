@@ -26,7 +26,7 @@ class NativeAdapterChecks(unittest.TestCase):
         ):
             cls.base = importlib.import_module("mini_fund.strategies.base").MiniFundStrategyBase
 
-    def probe(self, day):
+    def probe(self, day, config=None):
         base = self.base
         class LifecycleProbe(base):
             # Test-only object: never invokes Strategy.__init__ or any runner.
@@ -51,7 +51,7 @@ class NativeAdapterChecks(unittest.TestCase):
         obj.broker = SimpleNamespace(market="NYSE")
         obj.calls, obj.messages = [], []
         obj.now = datetime.fromisoformat(day).replace(hour=9, minute=0, tzinfo=NY)
-        config = {
+        config = config or {
             "timezone": "America/New_York", "phase_times": plan(),
             "triggers": {"poll_seconds": 1, "max_lateness_seconds": 5},
         }
@@ -81,11 +81,38 @@ class NativeAdapterChecks(unittest.TestCase):
         obj.before_market_opens()
         self.assertEqual(obj.calls, [Phase.BEFORE_CLOSE])
 
-    def test_current_config_keeps_all_triggers_disabled(self):
+    def configured_probe(self, day):
         path = Path(__file__).resolve().parents[1] / "config/application.json"
         config = json.loads(path.read_text(encoding="utf-8"))
-        self.assertTrue(all(value is None for value in config["phase_times"].values()))
-        self.assertIsNone(config["triggers"]["max_lateness_seconds"])
+        return self.probe(day, config)
+
+    def test_validated_hours_regular_session(self):
+        obj = self.configured_probe("2025-07-02")
+        for hour, minute in [(9, 0), (10, 15), (12, 45), (15, 30)]:
+            obj.now = obj.now.replace(hour=hour, minute=minute)
+            obj._poll_phases()
+            obj._poll_phases()
+        self.assertEqual(obj.calls, list(Phase))
+        self.assertEqual(obj.minutes_before_opening, 30)
+        self.assertEqual(obj.minutes_before_closing, 30)
+
+    def test_validated_hours_early_close(self):
+        obj = self.configured_probe("2025-07-03")
+        for hour, minute in [(9, 0), (10, 15), (11, 15), (12, 30)]:
+            obj.now = obj.now.replace(hour=hour, minute=minute)
+            obj._poll_phases()
+        self.assertEqual(obj.calls, list(Phase))
+
+    def test_configured_tolerance_boundary(self):
+        obj = self.configured_probe("2025-07-02")
+        obj.now = obj.now.replace(hour=9, minute=1)
+        obj._poll_phases()
+        self.assertEqual(obj.calls, [Phase.BEFORE_OPEN])
+        late = self.configured_probe("2025-07-02")
+        late.now = late.now.replace(hour=9, minute=1, second=1)
+        late._poll_phases()
+        self.assertEqual(late.calls, [])
+        self.assertEqual(late.vars.mini_fund_phase_runs["2025-07-02/before_open"]["status"], "missed")
 
     def test_run_schedule_cannot_be_reconfigured_silently(self):
         obj = self.probe("2025-07-02")

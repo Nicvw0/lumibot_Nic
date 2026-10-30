@@ -2,14 +2,26 @@
   "active_live_strategy": null,
   "timezone": "America/New_York",
   "phase_times": {
-    "before_open": null,
-    "after_open": null,
-    "mid_session": null,
-    "before_close": null
+    "before_open": {
+      "anchor": "open",
+      "offset_minutes": -30
+    },
+    "after_open": {
+      "anchor": "open",
+      "offset_minutes": 45
+    },
+    "mid_session": {
+      "anchor": "midpoint",
+      "offset_minutes": 0
+    },
+    "before_close": {
+      "anchor": "close",
+      "offset_minutes": -30
+    }
   },
   "triggers": {
     "poll_seconds": 1,
-    "max_lateness_seconds": null
+    "max_lateness_seconds": 60
   },
   "universe_source": null
 }

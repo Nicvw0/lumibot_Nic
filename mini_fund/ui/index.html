@@ -9,20 +9,27 @@ body{font-family:system-ui,sans-serif;max-width:880px;margin:40px auto;padding:0
 section{background:white;border:1px solid #dce2ea;border-radius:10px;padding:20px;margin:18px 0}
 h1{font-size:1.7rem}h2{font-size:1.1rem}p,li{line-height:1.6}
 table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:10px;border-bottom:1px solid #e6ebf0}
-small{color:#526276}
+small{color:#526276} tbody th{font-weight:500} strong{font-variant-numeric:tabular-nums;color:#174f74} @media(max-width:540px){body{padding:0 12px;margin:20px auto}section{padding:14px}td,th{padding:8px 4px;font-size:.88rem}}
 </style>
 </head>
 <body>
 <h1>Mini-fonds d’actions</h1>
 <p>Architecture vide · Aucune exécution connectée</p>
 <section><h2>Stratégies</h2><p>Aucune stratégie créée. Aucune stratégie live sélectionnée.</p></section>
-<section><h2>Les quatre moments</h2>
-<table><thead><tr><th>Moment</th><th>État</th></tr></thead><tbody>
-<tr><td>Avant séance</td><td>À définir</td></tr>
-<tr><td>Après ouverture</td><td>À définir</td></tr>
-<tr><td>Milieu de séance</td><td>À définir</td></tr>
-<tr><td>Avant clôture</td><td>À définir</td></tr>
-</tbody></table></section>
+<section aria-labelledby="schedule-title">
+<h2 id="schedule-title">Les 4 rendez-vous du fonds</h2>
+<p><small>Heure de New York · America/New_York · Jours de Bourse uniquement</small></p>
+<table>
+<thead><tr><th scope="col">Phase</th><th scope="col">Séance normale</th><th scope="col">Clôture à 13 h</th></tr></thead>
+<tbody>
+<tr><th scope="row">Avant séance</th><td><strong>9 h 00</strong></td><td>9 h 00</td></tr>
+<tr><th scope="row">Après ouverture</th><td><strong>10 h 15</strong></td><td>10 h 15</td></tr>
+<tr><th scope="row">Milieu de séance</th><td><strong>12 h 45</strong></td><td>11 h 15</td></tr>
+<tr><th scope="row">Avant clôture</th><td><strong>15 h 30</strong></td><td>12 h 30</td></tr>
+</tbody></table>
+<p><small>Début des tâches, pas obligation de transaction. Planning adapté au calendrier de marché.</small></p>
+<p><small>Horaires configurés · Aucun processus connecté à cette page.</small></p>
+</section>
 <section><h2>Univers S&amp;P 500</h2><p>Acquisition et contrôles non raccordés.</p></section>
 <section><h2>Backtests et suivi</h2><p>Aucune donnée raccordée. Aucun résultat ni position affiché.</p></section>
 <small>Page de structure statique. Elle ne lit pas l’état d’un compte ou d’un processus.

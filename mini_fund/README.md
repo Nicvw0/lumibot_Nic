@@ -69,19 +69,17 @@ les contrôles ; le temps vient de `get_datetime()` et le calendrier de
 `lumibot.tools.helpers.get_trading_days`. Les jours sans marché sont ignorés et
 la clôture réelle de la séance sert de référence, y compris à 13 h.
 
-`phase_times` contient quatre valeurs nulles : tous les moments sont actuellement
-désactivés. Chaque valeur pourra devenir un objet avec `anchor` égal à `open` ou
-`close`, et un décalage signé `offset_minutes`. Avant ouverture doit précéder
-l’ouverture ; avant clôture doit précéder la clôture. Un moment intrajournalier
-situé hors d’une séance écourtée est enregistré `outside_session`, pas déplacé
-silencieusement. Les heures métier seront choisies ensemble.
+`phase_times` configure les horaires validés de New York : 9 h 00, 10 h 15,
+12 h 45 et 15 h 30. Les règles sont ouverture −30 min, ouverture +45 min,
+milieu de séance et clôture −30 min. L’ancre `midpoint` calcule le milieu réel.
+Pour une clôture à 13 h : 9 h 00, 10 h 15, 11 h 15 et 12 h 30.
+Les jours sans séance sont ignorés. Une valeur nulle désactive un moment.
 
-`triggers.poll_seconds` vaut 1 : cadence technique demandée à la boucle native,
-pas une garantie de précision à la seconde. `max_lateness_seconds` reste nul et
-doit être défini explicitement avant d’activer un moment. Une activation tardive
-au-delà de cette tolérance est enregistrée `missed`, sans rattrapage automatique.
-Un échec est `failed` ; il n’est pas réessayé automatiquement. Ces conventions
-initiales seront réexaminées lors du choix des horaires.
+`triggers.poll_seconds` vaut 1, cadence demandée sans garantie à la seconde.
+`max_lateness_seconds` vaut 60, tolérance technique initiale ajustable.
+Au-delà, le moment est `missed`, sans rattrapage. Un échec est `failed` et
+n’est pas réessayé automatiquement. Aucun processus n’est lancé par le fichier
+de configuration ; aucune stratégie concrète n’est enregistrée.
 
 Les événements sont journalisés en UTC avec la date de séance de New York,
 l’heure cible et le retard observé. Le registre par jour et phase est conservé

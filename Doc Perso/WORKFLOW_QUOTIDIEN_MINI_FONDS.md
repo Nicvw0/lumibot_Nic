@@ -420,3 +420,56 @@ La prochaine décision porte sur les horaires, la tolérance, le traitement des
 moments manqués et l’adaptation souhaitée des moments intermédiaires aux séances
 écourtées. L’acquisition S&P 500 et le contenu des tâches restent non implémentés.
 Aucun processus de trading ou appel IA n’est démarré par cette modification.
+
+## 16. Horaires validés et configurés — 2026-10-30
+
+Cette décision remplace les horaires non définis des sections historiques 14 et 15.
+Les heures sont celles du début des tâches ; elles n’imposent aucune transaction.
+
+| Phase | Règle | Séance 9 h 30–16 h | Séance 9 h 30–13 h |
+|---|---|---|---|
+| Avant séance | Ouverture moins 30 minutes | 9 h 00 | 9 h 00 |
+| Après ouverture | Ouverture plus 45 minutes | 10 h 15 | 10 h 15 |
+| Milieu de séance | Milieu exact de la séance | 12 h 45 | 11 h 15 |
+| Avant clôture | Clôture moins 30 minutes | 15 h 30 | 12 h 30 |
+
+Référence : America/New_York, avec changements d’heure. Journaux en UTC.
+Le calendrier natif LumiBot fournit les séances effectives : pas de déclenchement
+les week-ends ou jours fériés ; adaptation aux clôtures anticipées. L’ancre
+`midpoint` calcule le milieu réel, sans décalage fixe après ouverture.
+
+Configuration : `mini_fund/config/application.json`. Les quatre moments sont
+configurés ; aucune stratégie concrète ou processus permanent n’est lancé.
+Les tâches métier et le lanceur restent à raccorder ultérieurement.
+
+Réglage technique initial retenu pour rendre la configuration utilisable :
+contrôle demandé chaque seconde et tolérance de démarrage de 60 secondes,
+borne incluse. Au-delà, le moment est manqué sans rattrapage automatique.
+Cette tolérance est ajustable ; elle ne garantit ni l’exécution à la seconde
+ni une durée maximale des tâches.
+
+Motifs du choix :
+- 9 h : intégrer les publications de 8 h 30 et laisser trente minutes de préparation.
+- 10 h 15 : observer l’ouverture et laisser une marge après les publications de 10 h.
+- 12 h 45 : point de gestion à mi-séance, sans avantage de rendement présumé.
+- 15 h 30 : garder du temps pour l’analyse, les ordres éventuels et leur vérification.
+
+Les journées FOMC demandent de considérer l’annonce généralement à 14 h et la
+conférence à 14 h 30 dans les futures tâches. Aucun cinquième déclencheur ni
+déplacement automatique particulier n’est ajouté. Le calendrier de Bourse
+ne remplace pas un calendrier d’annonces économiques.
+
+Sources examinées lors de la proposition :
+- NYSE : https://www.nyse.com/trade/trading-information
+- BLS : https://www.bls.gov/schedule/2026/
+- NYSE, ouverture : https://www.nyse.com/data-insights/opening-auction-filling-behaviors-opportunities-early-in-the-day
+- ISM : https://www.ismworld.org/supply-management-news-and-reports/reports/rob-report-calendar
+- Federal Reserve Bank of Kansas City : https://www.kansascityfed.org/research/economic-review/estimating-the-effects-of-monetary-policy-an-ongoing-evolution/
+
+La carte « Les 4 rendez-vous du fonds » dans `mini_fund/ui/index.html` affiche
+les séances normales et les clôtures à 13 h. C’est une présentation statique
+du planning, pas un indicateur d’exécution ou de connexion au compte.
+
+Validation : 23 vérifications hors ligne réussies, dont les quatre heures validées
+en séance normale et écourtée via le calendrier natif, et la tolérance à 60 secondes
+avec refus à 61 secondes. Aucun ordre ni appel IA. Aucun changement du cœur LumiBot.
