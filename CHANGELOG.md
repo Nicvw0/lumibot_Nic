@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Opt-in equity backtest cash guard with disabled, no-borrowing cash, and explicitly bounded margin modes; pending-order reservations, actual-fill fee/gap checks, and structured reporting. Live brokers and unsupported asset/order classes fail explicitly when protection is requested.
+
 ## 4.6.33 - 2026-10-27
 
 ### Added

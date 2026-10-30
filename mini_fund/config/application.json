@@ -1,0 +1,15 @@
+{
+  "active_live_strategy": null,
+  "timezone": "America/New_York",
+  "phase_times": {
+    "before_open": null,
+    "after_open": null,
+    "mid_session": null,
+    "before_close": null
+  },
+  "triggers": {
+    "poll_seconds": 1,
+    "max_lateness_seconds": null
+  },
+  "universe_source": null
+}

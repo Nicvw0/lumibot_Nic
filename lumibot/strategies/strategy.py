@@ -1529,6 +1529,18 @@ class Strategy(_Strategy):
             allow_negative=True,
         )
 
+    def configure_cash_guard(self, mode="disabled", *, max_borrow=None, price_buffer_pct=0.01):
+        """Configure simple long-only equity funding protection for this backtest.
+
+        Modes: disabled (legacy behavior), cash (no borrowing), margin (explicit
+        max_borrow in quote currency). Existing orders must finish or be canceled.
+        This never relaxes the real broker's own buying-power restrictions.
+        """
+        if not self.is_backtesting:
+            raise NotImplementedError("cash_guard currently supports BacktestingBroker only")
+        return self.broker.configure_cash_guard(self, mode=mode, max_borrow=max_borrow,
+                                               price_buffer_pct=price_buffer_pct)
+
     def configure_cash_financing(
         self,
         *,
@@ -4601,6 +4613,7 @@ class Strategy(_Strategy):
             "lumibot_version": lumibot_version,
             "backtesting_data_sources": backtesting_data_sources,
             "backtest_time_seconds": backtest_time_seconds,
+            "cash_guard": self.broker.get_cash_guard_summary(self) if hasattr(self.broker, "get_cash_guard_summary") else {"mode": "unsupported"},
         }
         profiling_enabled = bool(getattr(self, "_backtest_profiling_enabled", False))
         if profiling_enabled:

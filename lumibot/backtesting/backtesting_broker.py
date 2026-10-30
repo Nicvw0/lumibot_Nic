@@ -15,6 +15,7 @@ import pandas as pd
 import polars as pl
 import pytz
 
+from lumibot.backtesting.cash_guard import CashGuard, CashGuardError
 from lumibot.brokers import Broker
 from lumibot.data_sources import DataSourceBacktesting
 from lumibot.entities import Asset, Order, Position, SmartLimitConfig, TradingFee
@@ -152,6 +153,7 @@ class BacktestingBroker(Broker):
         # Calling init methods
         self.max_workers = max_workers
         self.option_source = option_source
+        self._cash_guards = {}
 
         # Legacy strategy.backtest code will always pass in a config even for Brokers that don't need it, so
         # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
@@ -1216,6 +1218,9 @@ class BacktestingBroker(Broker):
         if order is None:
             raise ValueError("BacktestingBroker cannot submit a null order")
 
+        if not self._cash_guard_preflight(order):
+            return order
+
         resolver = getattr(self.data_source, "resolve_order_asset", None)
         if callable(resolver):
             original_asset = order.asset
@@ -1289,6 +1294,10 @@ class BacktestingBroker(Broker):
             logger.error("No orders to submit to broker when calling submit_orders")
             return []
 
+        if is_multileg:
+            active_guards = [getattr(self, "_cash_guards", {}).get(o.strategy) for o in orders]
+            if any(state and state[1].enabled for state in active_guards):
+                raise CashGuardError("UNSUPPORTED_ORDER", "atomic packages are unsupported with the active cash guard; no legs submitted")
         results = []
         for order in orders:
             results.append(self.submit_order(order))
@@ -1407,6 +1416,8 @@ class BacktestingBroker(Broker):
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
         """Modify an order. Only limit/stop price is allowed to be modified by most brokers."""
+        if not self._cash_guard_preflight(order, limit_price=limit_price, phase="modify"):
+            return False
         price = None
         if order.order_type == order.OrderType.LIMIT:
             price = limit_price
@@ -1932,12 +1943,105 @@ class BacktestingBroker(Broker):
         current_cash = strategy.cash
         strategy._set_cash_position(current_cash - float(trade_cost))
 
-    def _execute_filled_order(
+    def _register_cash_guard(self, strategy, config=None):
+        if config is not None and not isinstance(config, dict):
+            raise ValueError("cash_guard must be a dict or None")
+        candidate = CashGuard(**(config or {}))
+        existing = self._cash_guards.get(strategy.name)
+        if existing and existing[0] is not strategy and (existing[1].enabled or candidate.enabled):
+            raise ValueError("Guarded strategy names must be unique within a broker")
+        self._cash_guards[strategy.name] = (strategy, candidate)
+
+    def configure_cash_guard(self, strategy, **config):
+        """Change the per-strategy funding policy only with no outstanding orders."""
+        if self.get_active_tracked_orders(strategy.name) or (getattr(self, "_cash_guards", {}).get(strategy.name) and self._cash_guards[strategy.name][1].pending_fills):
+            raise ValueError("Cancel or finish active orders before changing the cash guard")
+        candidate = CashGuard(**config)
+        self._cash_guards[strategy.name] = (strategy, candidate)
+        strategy.log_message("Cash guard: %s" % candidate.snapshot())
+
+    def get_cash_guard_summary(self, strategy):
+        state = getattr(self, "_cash_guards", {}).get(strategy.name)
+        return state[1].snapshot() if state else CashGuard().snapshot()
+
+    def _cash_guard_reject(self, strategy, guard, order, error, phase, terminal=True):
+        record = {"order_id": str(order.identifier), "symbol": order.asset.symbol,
+                  "side": str(order.side), "quantity": str(order.quantity),
+                  "phase": phase, "code": error.code, "message": str(error)}
+        guard.rejections.append(record)
+        strategy.log_message(str(error))
+        if terminal:
+            guard.release(order)
+            self._process_trade_event(order, self.ERROR_ORDER, error=error)
+
+    def _cash_guard_preflight(self, order, limit_price=None, phase="submit"):
+        state = getattr(self, "_cash_guards", {}).get(order.strategy)
+        if state is None and any(g.enabled for _, g in getattr(self, "_cash_guards", {}).values()):
+            raise CashGuardError("UNREGISTERED_STRATEGY", "no registered budget for this order")
+        if state is None or not state[1].enabled:
+            return True
+        strategy, guard = state
+        with guard.lock:
+            try:
+                guard.supported(order, strategy.quote_asset)
+                if str(order.side) == "buy":
+                    if str(order.order_type) in {"limit", "stop_limit"}:
+                        price = order.limit_price if limit_price is None else limit_price
+                    else:
+                        price = self.data_source.get_last_price(order.asset, quote=order.quote)
+                    fee = self.calculate_trade_cost(order, strategy, price, quantity=guard.remaining(order))
+                else:
+                    # Sells reserve shares, never their unexecuted proceeds.
+                    price, fee = 1, 0
+                position = self.get_tracked_position(order.strategy, order.asset)
+                guard.reserve(order, cash=guard.effective_cash(strategy.cash), held=position.quantity if position else 0,
+                              price=price, fee=fee)
+                return True
+            except (CashGuardError, TypeError, ValueError, ArithmeticError) as exc:
+                error = exc if isinstance(exc, CashGuardError) else CashGuardError("INVALID_INPUT", str(exc))
+                self._cash_guard_reject(strategy, guard, order, error, phase, terminal=phase != "modify")
+                return False
+
+    def _execute_filled_order(self, order, price, filled_quantity, strategy):
+        state = getattr(self, "_cash_guards", {}).get(order.strategy)
+        if state is None and any(g.enabled for _, g in getattr(self, "_cash_guards", {}).values()):
+            raise CashGuardError("UNREGISTERED_STRATEGY", "no registered budget for this order")
+        if state is None or not state[1].enabled:
+            return self._execute_filled_order_unchecked(order, price, filled_quantity, strategy)
+        if state[0] is not strategy:
+            raise CashGuardError("STRATEGY_MISMATCH", "fill owner differs from the registered budget")
+        guard = state[1]
+        with guard.lock:
+            try:
+                guard.supported(order, strategy.quote_asset)
+                if not order.is_active():
+                    raise CashGuardError("ORDER_NOT_ACTIVE", "terminal orders cannot execute again")
+                fee = self.calculate_trade_cost(order, strategy, price, quantity=filled_quantity)
+                position = self.get_tracked_position(order.strategy, order.asset)
+                guard.check_fill(order, cash=guard.effective_cash(strategy.cash), held=position.quantity if position else 0,
+                                 price=price, quantity=filled_quantity, fee=fee)
+            except (CashGuardError, TypeError, ValueError, ArithmeticError) as exc:
+                error = exc if isinstance(exc, CashGuardError) else CashGuardError("INVALID_INPUT", str(exc))
+                self._cash_guard_reject(strategy, guard, order, error, "fill")
+                return
+            token = guard.record_fill(order, filled_quantity, price)
+            transaction_count = len(order.transactions)
+            result = self._execute_filled_order_unchecked(order, price, filled_quantity, strategy,
+                                                         _cash_guard_fee=fee)
+            if len(order.transactions) == transaction_count:
+                if token in guard.pending_fills:
+                    guard.pending_fills.remove(token)
+                raise RuntimeError("Guarded fill did not record a trade; cash state cannot be trusted")
+            guard.after_fill(order)
+            return result
+
+    def _execute_filled_order_unchecked(
         self,
         order: Order,
         price: float,
         filled_quantity: Decimal,
         strategy,
+        _cash_guard_fee=None,
     ) -> None:
         is_perpetual = getattr(order.asset, "asset_type", None) == Asset.AssetType.CRYPTO_FUTURE
         capped_perpetual = False
@@ -1969,7 +2073,9 @@ class BacktestingBroker(Broker):
             callable(getattr(self.data_source, "get_backtest_fill_quantity", None))
             and Decimal(str(filled_quantity)) < Decimal(str(order.quantity))
         ) or capped_perpetual
-        if is_perpetual:
+        if _cash_guard_fee is not None:
+            trade_cost = _cash_guard_fee
+        elif is_perpetual:
             # Perpetual fees were applied in the actual settlement wallet.
             trade_cost = settled_fee
             order.trade_cost_currency = self.get_contract_spec(order.asset).settle

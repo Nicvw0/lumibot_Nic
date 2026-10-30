@@ -1,282 +1,129 @@
-# Stratégies de trading à évaluer pour le mini-fonds LumiBot
+# Stratégies à évaluer — Mini-fonds d'actions du S&P 500
 
-**Version :** 1.0  
-**Date :** 29 octobre 2026  
-**Marché visé :** actions américaines  
-**Environnement initial :** développement local sous Windows, backtests, puis Alpaca Paper Trading  
-**Principe central :** les IQ proposent des analyses et des actions ; le code Python vérifie les signaux, applique les règles de risque et décide si un ordre peut être autorisé.
+Protocole de recherche et état réel des exemples LumiBot, après les décisions du projet.
 
----
+**Version :** 2.0  
+**Dernière mise à jour :** 30 octobre 2026  
+**Statut :** base de mise au point en backtesting ; aucune stratégie S&P 500 finale sélectionnée  
+**Public :** propriétaire du projet et agents chargés des recherches et tests
 
-## 1. Objectif
+## 1. Objectif et décisions en vigueur
 
-Identifier, tester et comparer des stratégies de trading adaptées à un petit portefeuille d'actions américaines, en utilisant LumiBot comme moteur Python.
+Construire progressivement un mini-fonds d'**actions individuelles du S&P 500**, marché américain, avec LumiBot comme moteur. Commencer par des backtests vérifiables, puis envisager Alpaca Paper Trading après qualification de l'exécution et des risques.
 
-Le but n'est pas de choisir une stratégie sur la base de promesses ou d'un rendement historique isolé. Il faut rechercher une approche :
+Décisions validées :
 
-- compréhensible et vérifiable ;
-- testable sur des données historiques suffisamment fiables ;
-- robuste sur différentes périodes et conditions de marché ;
-- réaliste après prise en compte des coûts et des conditions d'exécution ;
-- contrôlable par des règles Python indépendantes des IQ ;
-- exploitable d'abord en simulation, sans argent réel.
+- L'univers autorisé est le **S&P 500**, avec ses membres à la date simulée. Les ETF ne constituent plus le portefeuille cible. SPY peut rester un benchmark ou un indicateur de marché.
+- Le fonctionnement comporte **quatre activations par séance normale** : avant ouverture, après ouverture, en cours de séance et avant clôture. Les heures exactes restent à fixer. Chaque activation peut conclure à `HOLD` ou à aucun ordre ; elle ne force pas un rééquilibrage.
+- La base de comparaison comprend d'abord **Momentum relatif**, **suivi de tendance**, puis leur combinaison. Le breakout est une piste conditionnelle si une activité intraday est retenue. Qualité/valorisation et retour à la moyenne restent des recherches complémentaires.
+- Les IQ peuvent rechercher, expliquer et proposer ; le code Python vérifie les critères et autorise ou refuse l'ordre. Un exemple où un agent IA trade directement ne satisfait pas automatiquement cette architecture.
+- Le **garde-fou cash reste désactivé pour les recherches exploratoires actuelles**. Les déficits de cash et l'emprunt implicite doivent être signalés. Les modes actifs seront réévalués sur une stratégie pertinente, avec gestion correcte des refus et exécutions.
+- Aucun ordre Paper/Live ni changement de code n'est autorisé par la seule mise à jour de ce document. Les commits GitHub restent à la charge de l'utilisateur.
 
-Aucune stratégie ne garantit des gains futurs. Les résultats historiques peuvent être affectés par le surapprentissage, les biais de données et les changements de régime du marché.
+Le [plan principal](plan_mini_fonds_lumibot.md) porte la numérotation des étapes ; la prochaine est **l'étape 3, phase B**. La [synthèse](synthese_audit_strategies_lumibot.md) résume l'inventaire et les réserves.
 
-## 2. Stratégies candidates
+## 2. Ce que les tests précédents ont établi
 
-### 2.1 Momentum relatif — priorité initiale
+L'étape 2 de la conversation est terminée avec réserves : Momentum original sur **SPY, VEU, AGG**, capital simulé de 100 000 USD, période 2021–2025, résultats reproductibles sur deux exécutions par fournisseur.
 
-**Principe :** classer un univers d'actions américaines selon leurs performances passées et sélectionner les actions qui ont été relativement les plus fortes.
+| Configuration | Yahoo | Alpaca | Interprétation |
+|---|---:|---:|---|
+| Momentum original, garde-fou désactivé | +19,53 % | +18,84 % | Référence sur ETF ; cash parfois négatif et dividendes non crédités au portefeuille. |
+| Rejeu rapide, mode sans emprunt | −2,83 % | −2,72 % | Aucune trésorerie négative, mais nombreux refus que la stratégie ne gère pas correctement ; une exécution par source pour ce rejeu. |
 
-Pistes à tester :
+Ces tests ne valident ni un portefeuille d'actions S&P 500, ni les quatre cycles intraday, ni une performance réalisable après tous les coûts. Le garde-fou empêche les ordres non financés ; il ne corrige pas les variables de position qu'une stratégie met à jour avant confirmation de l'achat.
 
-- calculer les performances sur plusieurs horizons, par exemple 6 et 12 mois ;
-- comparer les résultats avec et sans exclusion du mois le plus récent ;
-- rééquilibrer périodiquement le portefeuille ;
-- imposer des critères de liquidité et de qualité des données.
+Le garde-fou installé propose `disabled`, `cash` et `margin` avec plafond d'emprunt explicite. Son périmètre actuel est celui des ordres simples long-only actions/ETF en backtest. Il n'est pas un Risk Gate complet, un modèle de marge sur dérivés ou un contrôle Paper/Live. Le choix exploratoire `disabled` n'est pas une validation de l'emprunt ni une autorisation de reprendre ce réglage en exploitation.
 
-**Atouts :** règles quantitatives mesurables, comparaison entre titres et fréquence de rotation contrôlable.
+## 3. Stratégies et composants réellement présents dans le dépôt
 
-**Risques :** retournements rapides du marché, pertes concentrées, rotation excessive et biais de survivance si l'univers historique est mal construit.
+La présence d'un fichier n'est pas une preuve d'avantage de trading. La distinction Python / IA / composant doit apparaître dans chaque compte rendu.
 
-### 2.2 Suivi de tendance — filtre de marché
+| Priorité de recherche | Fichier ou composant | État réel | Travail nécessaire pour notre projet |
+|---|---|---|---|
+| 1 — Momentum relatif | `lumibot/example_strategies/stock_momentum.py` | Exemple Python : un seul actif parmi trois ETF par défaut, fenêtre de deux jours, réévaluation toutes les deux séances. | Variante distincte sur actions S&P 500 ; définir plusieurs positions, pondérations, horizons et fréquence ; ne pas considérer deux jours comme un réglage validé. |
+| 2 — Suivi de tendance | `lumibot/example_strategies/ai_researcher_trader.py` ; `SMAIndicator` dans `lumibot/indicators/builtin.py` | Exemple IA sur un symbole, moyenne de 20 barres ; indicateur SMA disponible indépendamment. | Définir une règle mesurable par titre et/ou un filtre de marché ; distinguer signal de prix, interprétation IA et autorisation Python. |
+| 3 — Combinaison Momentum + tendance | Assemblage des éléments précédents | Hypothèse de stratégie à construire et tester ; pas un mini-fonds prêt à l'emploi. | Comparer Momentum seul, tendance seule et combinaison ; isoler l'effet de chaque composant. |
+| Conditionnel — Breakout d'ouverture | `lumibot/example_strategies/ai_opening_range_breakout.py` | Exemple IA : range 9h30–9h45 ET, contrôles horaires, univers comprenant ETF et actions. | Restreindre aux actions S&P 500, vérifier données intraday, règles d'entrée/sortie et gestion entre les quatre cycles. Les consignes de stop/sortie dans les prompts ne remplacent pas une qualification des ordres effectivement placés. |
+| Ultérieur — Qualité/valorisation | `ai_trading_team_warren_buffett_value.py`, `ai_trading_team_bill_ackman_concentrated.py` dans `lumibot/example_strategies/` | Exemples IA, univers restreints et décisions guidées par prompts. | Définir les critères, les dates de publication et l'horizon ; ne pas assimiler les noms d'investisseurs à une validation de performance. |
+| Ultérieur — Retour à la moyenne | `lumibot/example_strategies/ccxt_backtesting_example.py` | Exemple Python sur crypto et bandes de Bollinger ; pas une stratégie actions déjà qualifiée. | Adapter dans une variante dédiée aux actions ; fixer entrées, invalidations, coûts et comportement en tendance forte. |
+| Outils complémentaires | `RSIIndicator`, `BollingerBandsIndicator`, `VWAPIndicator` | Indicateurs disponibles, pas des stratégies complètes. | Construire et tester des règles explicites ; éviter de multiplier les indicateurs sans hypothèse précise. |
 
-**Principe :** déterminer si le marché général présente une tendance favorable. Un exemple à évaluer est la comparaison du prix d'un indice large ou d'un ETF indiciel comme SPY avec sa moyenne mobile sur 200 jours.
+`ai_vwap.py` utilise SPY par défaut et des agents IA ; il n'est pas une stratégie multi-actions S&P 500 prête à reprendre. `agent_macro_risk.py`, les rotations ETF et l'exemple Citadel sectoriel ne respectent pas notre périmètre s'ils sont copiés tels quels.
 
-Versions à comparer :
+L'organisation `ai_trading_team_bull_bear_large_cap_stocks.py` (recherche, arguments favorables, objections, décision) peut inspirer le processus des IQ. Cette architecture n'est pas un signal économique et doit être évaluée séparément.
 
-- momentum sans filtre ;
-- momentum avec filtre de tendance ;
-- différentes définitions simples du filtre, fixées avant l'évaluation finale.
+## 4. Fonctionnement des quatre activations
 
-Le filtre pourrait réduire les nouvelles prises de position ou l'exposition lorsque la tendance est défavorable. Il ne doit pas être considéré comme une garantie de protection contre les baisses.
+Les rôles suivants sont décidés comme base fonctionnelle ; les heures précises et la politique des demi-séances restent à valider avant exécution.
 
-### 2.3 Cassure de prix (*breakout*) — piste ultérieure
-
-**Principe :** ouvrir une position lorsqu'un titre dépasse un plus haut récent, éventuellement avec une confirmation par le volume et la tendance générale.
-
-**Atouts :** peut capter des mouvements de prix marqués.
-
-**Risques :** fausses cassures, rotations fréquentes et sensibilité aux règles d'entrée et de sortie.
-
-À tester après avoir établi un processus de backtest fiable.
-
-### 2.4 Retour à la moyenne (*mean reversion*) — stratégie séparée
-
-**Principe :** rechercher des baisses de court terme anormales en supposant qu'un prix puisse revenir vers sa moyenne.
-
-**Atouts :** logique différente de celle du momentum.
-
-**Risques :** une baisse peut se poursuivre, notamment après une mauvaise nouvelle ou une détérioration fondamentale.
-
-Cette approche doit d'abord être testée séparément. Elle ne doit pas contredire automatiquement un signal de momentum : les conditions précises de déclenchement et d'invalidation doivent être définies.
-
-### 2.5 Filtres fondamentaux — évolution possible
-
-**Principe :** filtrer les actions selon des critères de qualité financière, de rentabilité ou de valorisation, puis éventuellement appliquer le momentum au sous-ensemble retenu.
-
-**Atouts :** peut compléter une sélection basée uniquement sur les prix.
-
-**Risques :** données plus complexes, publication différée des états financiers, biais rétrospectif et difficultés d'accès à des données historiques correctement datées.
-
-À envisager seulement après validation du système de base.
-
-## 3. Première combinaison à tester
-
-La première hypothèse de travail est un **momentum relatif avec filtre de tendance du marché et gestion du risque indépendante**.
-
-### Étape A — Définir l'univers d'actions
-
-- Définir une liste ou un univers d'actions américaines liquides.
-- Définir à l'avance les critères d'inclusion et d'exclusion.
-- Vérifier la disponibilité et la qualité des données.
-- Éviter le biais de survivance : ne pas utiliser uniquement la liste des sociétés qui existent encore aujourd'hui pour simuler les choix historiques, lorsque des données historiques d'univers sont disponibles.
-- Documenter les limites des données utilisées.
-
-### Étape B — Classer les titres
-
-- Calculer les performances historiques sur des horizons définis, par exemple 6 et 12 mois.
-- Comparer plusieurs méthodes simples de classement.
-- Tester séparément l'exclusion du mois le plus récent.
-- Définir à l'avance le nombre de titres retenus ou la règle de sélection.
-- N'autoriser aucune IQ à choisir librement des actions en contournant ces critères.
-
-### Étape C — Filtrer selon la tendance du marché
-
-- Choisir un indicateur de marché large et documenté.
-- Tester une version sans filtre et une version avec filtre, par exemple fondé sur une moyenne mobile de long terme.
-- Mesurer si le filtre améliore réellement le profil de risque hors échantillon.
-- Inclure les faux signaux, les reprises rapides et les périodes latérales dans l'évaluation.
-
-### Étape D — Appliquer la gestion du risque en Python
-
-Le code Python doit appliquer au minimum :
-
-- une limite de taille par position ;
-- une limite d'exposition totale ;
-- une limite de concentration sectorielle, si les données nécessaires sont disponibles ;
-- une vérification des liquidités ;
-- une vérification de la fraîcheur et de la cohérence des données ;
-- une prévention des ordres dupliqués ;
-- des règles de suspension et un arrêt d'urgence ;
-- une politique explicite en cas d'erreur ou de résultat incertain.
-
-Les valeurs numériques des limites doivent être définies et testées avant toute exécution. Un ordre stop ne garantit pas un prix de sortie précis lors d'une forte volatilité.
-
-### Étape E — Choisir la fréquence
-
-Comparer au minimum :
-
-- un rééquilibrage hebdomadaire ;
-- un rééquilibrage mensuel.
-
-Les quatre analyses quotidiennes envisagées dans le projet peuvent surveiller le marché, les positions, les actualités et les risques sans entraîner nécessairement quatre vagues d'ordres par jour.
-
-**Quatre analyses quotidiennes ne signifient pas quatre obligations de trader.** L'absence de transaction doit rester une décision valide.
-
-## 4. Rôle des IQ et validation indépendante par Python
-
-Ce principe est obligatoire pour l'architecture du projet.
-
-### Flux décisionnel
-
-1. Les IQ analysent les informations disponibles et peuvent proposer `BUY`, `SELL` ou `HOLD`, avec le symbole, la quantité suggérée, les raisons, les hypothèses et le niveau de confiance.
-2. Le backend Python vérifie la proposition avec les données de marché, les signaux calculés, la stratégie active, les positions, les liquidités et les règles de risque.
-3. Le contrôle Python retourne une décision structurée :
-   - `APPROVED` : proposition autorisée ;
-   - `REJECTED` : proposition rejetée, avec la raison ;
-   - `REVIEW_REQUIRED` : données ou situation ambiguës, aucune exécution automatique.
-4. Seule une proposition autorisée peut être transformée en ordre LumiBot/broker.
-5. Le résultat côté broker est enregistré séparément : ordre soumis, accepté, rejeté, partiellement exécuté ou exécuté.
-
-### Contrôles minimaux
-
-- Données absentes, périmées ou incohérentes : bloquer les nouveaux ordres.
-- Quantité, valeur d'ordre ou exposition dépassant les limites : rejeter ou réduire uniquement selon une règle explicite et testée.
-- Liquidités insuffisantes : rejeter.
-- Ordre en double ou ordre incompatible déjà ouvert : bloquer ou traiter selon une procédure idempotente.
-- Stratégie en pause, mode lecture seule ou arrêt d'urgence actif : ne pas soumettre d'ordre.
-- Signal de stratégie non confirmé : rejeter ou demander une nouvelle analyse, selon les règles fixées à l'avance.
-- Toute modification proposée par une IQ doit être soumise à nouveau aux contrôles Python.
-
-Le modèle d'IA ne doit pas pouvoir modifier les limites de risque, les identifiants broker ou les paramètres de sécurité. Les secrets ne doivent jamais être exposés à l'interface web.
-
-### Journal d'audit
-
-Pour chaque cycle, conserver :
-
-- horodatage et mode d'exécution ;
-- données et indicateurs utilisés ;
-- proposition initiale de l'IQ ;
-- stratégie et version de paramètres ;
-- contrôles effectués et leurs résultats ;
-- décision Python et raisons d'approbation ou de rejet ;
-- ordre demandé et réponse du broker ;
-- exécution réelle, erreurs et résultat ultérieur.
-
-Il faut distinguer clairement **la suggestion de l'IQ**, **l'autorisation du code**, **l'ordre envoyé** et **l'exécution confirmée par le broker**.
-
-## 5. Matrice de backtests à mettre en place
-
-Comparer les variantes dans des conditions identiques autant que possible.
-
-| ID | Variante | Question principale |
+| Cycle | Recherche / contrôle | Action éventuelle |
 |---|---|---|
-| A | Momentum relatif, sans filtre | La sélection par momentum apporte-t-elle un avantage face à une référence passive ? |
-| B | Momentum relatif + filtre de tendance | Le filtre améliore-t-il le risque et/ou les rendements hors échantillon ? |
-| C | Variante B + règles de dimensionnement du risque | Les limites de position et d'exposition améliorent-elles le profil de risque ? |
-| D | Breakout indépendant | Cette stratégie mérite-t-elle d'être poursuivie après les premiers tests ? |
-| E | Retour à la moyenne indépendant | Cette approche apporte-t-elle quelque chose sur un univers et des conditions définis ? |
+| 1 — Avant ouverture | Actualités connues, annonces d'entreprise, état du marché, classement et positions existantes. | Préparer un plan ; ne pas supposer connus les prix d'ouverture ou la barre complète du jour. |
+| 2 — Après ouverture | Vérifier les prix et conditions d'exécution effectivement disponibles, les signaux et ordres déjà ouverts. | Entrer, conserver, ajuster ou refuser selon les règles de la variante. |
+| 3 — En cours de séance | Nouvelles informations, invalidations, expositions et rapprochement des exécutions. | Gérer les positions ou ne rien faire ; éviter les ordres dupliqués. |
+| 4 — Avant clôture | Bilan des positions, ordres en attente, événements connus et hypothèses overnight. | Conserver ou sortir selon la stratégie ; aucune obligation de tout vendre pour une stratégie à horizon de plusieurs jours. |
 
-Les variantes D et E sont des pistes secondaires. Elles ne doivent pas retarder l'établissement d'une base de comparaison solide.
+Les décisions doivent être journalisées même en l'absence de transaction. Le calendrier est celui du marché, en **America/New_York**, avec jours fériés, changements d'heure et clôtures anticipées. L'exécution d'ordres de protection peut survenir entre deux activations ; quatre observations seules ne prouvent pas qu'un risque intraday est contrôlé.
 
-### Indicateurs à enregistrer
+**Compatibilité technique à établir :** `register_cron_callback` est explicitement ignoré en mode backtest dans cette installation. L'exemple `schedule_function.py` ne prouve donc pas les quatre activations historiques. Le protocole doit utiliser l'horloge simulée et une granularité appropriée. Un classement peut utiliser des barres journalières terminées, tandis que les quatre moments de décision/exécution nécessitent des observations adaptées ; ne pas simuler quatre cours différents avec une seule barre journalière.
 
-- rendement total et annualisé ;
-- maximum drawdown ;
-- volatilité ;
-- Sharpe ratio et Sortino ratio, en documentant leurs hypothèses ;
-- nombre de transactions et rotation du portefeuille ;
-- exposition moyenne et maximale ;
-- coûts estimés, spreads et glissement de prix ;
-- résultats par période et régime de marché ;
-- comparaison à un indice de référence et à une stratégie passive simple ;
-- résultats hors échantillon ;
-- sensibilité à des changements raisonnables de paramètres.
+## 5. Protocole de comparaison en phase B
 
-Ne pas sélectionner une stratégie uniquement parce qu'elle présente le rendement historique le plus élevé.
+### 5.1 Univers et données
 
-## 6. Protocole pour éviter les backtests trompeurs
+1. Définir les membres historiques du S&P 500 et les règles d'entrée/sortie de l'univers.
+2. Vérifier liquidité, identifiants, historique préalable, splits, dividendes et titres retirés. Un ticker actuel ne garantit pas la même société à toutes les dates.
+3. Un prototype réduit peut être envisagé selon des règles établies à l'avance ; le nombre de titres suivis et le nombre de positions sont deux paramètres différents, encore à arbitrer.
+4. Comparer les sources avec des hypothèses cohérentes : une différence de signal, d'ajustement ou de prix de valorisation n'est pas un effet de stratégie.
+5. Documenter les trous de données et leurs conséquences ; ne pas fabriquer de prix ou masquer une période tronquée.
 
-1. **Établir une référence** : comparer au S&P 500 et à une stratégie passive simple, par exemple SPY acheté et conservé, en tenant compte de la période, de l'exposition et des hypothèses.
-2. **Tester chaque composant séparément** : momentum seul, filtre seul lorsque pertinent, puis combinaison.
-3. **Séparer les périodes** : conception, ajustement, puis période finale de test jamais utilisée pour choisir les paramètres.
-4. **Intégrer les frictions** : commissions éventuelles, spread, glissement et hypothèses d'exécution réalistes.
-5. **Éviter le biais de survivance et le biais d'anticipation** : ne jamais utiliser une information avant sa date de disponibilité réelle.
-6. **Tester la robustesse** : faire varier raisonnablement les paramètres et vérifier que les résultats ne dépendent pas d'un réglage très précis.
-7. **Examiner les périodes difficiles** : crises, marchés baissiers, reprises brutales et marchés latéraux.
-8. **Conserver les expériences** : enregistrer le code, les paramètres, les données, les résultats et la date de chaque test.
-9. **Passer à Alpaca Paper Trading** seulement après des résultats suffisamment robustes et des tests satisfaisants des contrôles et de l'exécution simulée.
+### 5.2 Variantes prioritaires
 
-## 7. Architecture et étapes recommandées
+| ID | Variante | Question |
+|---|---|---|
+| A | Momentum relatif sur actions S&P 500, sans filtre | La sélection ajoute-t-elle une valeur après coûts et risque ? |
+| B | Suivi de tendance sur les titres, à règles définies | La persistance d'une tendance constitue-t-elle une référence intéressante ? |
+| C | Momentum + filtre de tendance du marché | Le filtre améliore-t-il le profil par rapport à A, en tenant compte des reprises manquées ? |
+| D | Candidate retenue, avec exécution/dimensionnement adaptés puis garde-fou activé | La stratégie fonctionne-t-elle avec des contraintes de financement explicites et des refus correctement traités ? |
+| E | Breakout d'ouverture sur actions, si l'intraday est retenu | L'opportunité persiste-t-elle avec les données, délais et coûts réalisables ? |
 
-LumiBot reste le moteur de stratégie et d'exécution. L'interface locale sert à visualiser les résultats, consulter le journal et piloter les fonctions autorisées. Elle ne doit pas envoyer directement d'ordres au broker.
+Les variantes qualité et retour à la moyenne feront l'objet de protocoles distincts ultérieurs. Aucun horizon, SMA, nombre de positions, seuil sectoriel ou fréquence de rééquilibrage n'est considéré optimisé par défaut. Tester une seule modification logique à la fois. Une comparaison hebdomadaire/mensuelle est une hypothèse possible pour des stratégies lentes, sans supprimer les quatre contrôles quotidiens.
 
-Ordre de travail recommandé :
+### 5.3 Mesures et critères
 
-1. Auditer le dépôt LumiBot local, les versions et les exemples existants.
-2. Reproduire un backtest de référence et vérifier les données.
-3. Implémenter le momentum relatif le plus simple possible.
-4. Ajouter des métriques, des tests et un journal de résultats reproductible.
-5. Tester la version avec filtre de tendance.
-6. Ajouter les règles de risque et tester explicitement les cas de rejet d'ordre.
-7. Évaluer hors échantillon et documenter les limites.
-8. Construire l'interface locale en lecture seule, puis les commandes autorisées.
-9. Configurer Alpaca Paper Trading, les contrôles d'ordres, les logs et la reprise après redémarrage.
-10. Ajouter les quatre cycles quotidiens en tenant compte du calendrier boursier américain, des jours fériés, des changements d'heure et des clôtures anticipées.
-11. Ajouter les IQ progressivement pour l'analyse et la formulation de propositions, tout en gardant les contrôles Python indépendants.
-12. N'envisager l'argent réel ou l'hébergement qu'après une phase de simulation documentée et une évaluation prudente des risques.
+Enregistrer rendement total et annualisé, drawdown, volatilité, Sharpe/Sortino avec leurs conventions, turnover, nombre d'ordres et d'exécutions, concentration, exposition, séances sans position, liquidités minimales et financement implicite. Ajouter le bilan de chaque cycle, les décisions `HOLD`, refus, annulations et exécutions partielles.
 
-## 8. Sources officielles et institutionnelles
+Comparer à une référence S&P 500/SPY correctement décrite. Le benchmark n'est pas une position négociée de notre portefeuille. Éviter de mélanger rendement de prix, dividendes crédités et cours ajustés ; intégrer les frictions selon les hypothèses réellement appliquées.
 
-Ces sources servent de références pour la conception et les tests. Elles ne constituent pas une garantie de performance.
+La période **2021–2025 a déjà été examinée** ; elle reste exploratoire. Définir avant l'ajustement les périodes de conception/validation et un test final réellement non consulté. Mesurer la robustesse sur plusieurs régimes et une sensibilité raisonnable aux paramètres. Ne pas sélectionner la variante au seul rendement le plus élevé.
 
-### LumiBot
+## 6. Rôle des IQ et autorisation d'ordre
 
-- Documentation officielle : https://lumibot.lumiwealth.com/
-- Exemples de stratégies : https://lumibot.lumiwealth.com/examples.html
-- Déploiement : https://lumibot.lumiwealth.com/deployment.html
+Les IQ analysent les informations disponibles et proposent `BUY`, `SELL` ou `HOLD`, avec motifs et preuves datées. Le Python confronte ces propositions aux règles de stratégie, à l'univers, aux données, aux positions et aux ordres en cours, puis produit `APPROVED`, `REJECTED` ou `REVIEW_REQUIRED`.
 
-### Recherche sur le momentum et le suivi de tendance
+Seule une décision autorisée peut être convertie en ordre ; les deux autres interdisent un nouvel ordre. Les IQ ne peuvent pas modifier leurs limites ou contourner un rejet. Les exemples LumiBot à agent trader doivent être adaptés à cette architecture ; leur présence ne prouve pas qu'une validation déterministe des signaux est déjà construite.
 
-- AQR — *Time Series Momentum* : https://www.aqr.com/insights/research/journal-article/time-series-momentum
-- AQR — *A Century of Evidence on Trend-Following Investing* : https://www.aqr.com/insights/research/journal-article/a-century-of-evidence-on-trend-following-investing
-- NBER — *Momentum Crashes* : https://www.nber.org/papers/w20439
-- NBER — *Profitability of Momentum Strategies* : https://www.nber.org/papers/w7159
+La désactivation choisie du garde-fou cash pendant l'exploration est un paramètre explicite des simulations. Elle ne supprime pas l'objectif d'un Risk Gate complet pour une future exploitation et ne permet pas de décrire ces résultats comme des performances sans emprunt. Avant Paper, une candidate devra gérer les liquidités, positions, ordres ouverts, doublons, rejets, données périmées, exposition, limites sectorielles et arrêt d'urgence.
 
-### Risque, diversification et exécution
+Journal : proposition de l'IQ → preuves et contrôles Python → décision → ordre demandé → réponse et exécutions broker. Une soumission ne doit jamais être enregistrée comme un achat réussi sans confirmation.
 
-- Investor.gov, site d'information des investisseurs de la SEC : https://www.investor.gov/
-- FINRA, informations et éducation des investisseurs : https://www.finra.org/investors
+## 7. Sources et portée de la recherche
 
-### Broker et données
+Sources consultées pour établir la base de recherche le 30 octobre 2026 :
 
-- Alpaca — documentation officielle : https://docs.alpaca.markets/
-- Alpaca — Paper Trading : https://docs.alpaca.markets/docs/paper-trading
+- [S&P Dow Jones Indices — S&P 500](https://www.spglobal.com/spdji/en/indices/equity/sp-500/) : définition de l'univers de grandes entreprises américaines ; pas une preuve de rendement de notre sélection.
+- [AQR — Fact, Fiction and Momentum Investing](https://www.aqr.com/Insights/Research/Journal-Article/Fact-Fiction-and-Momentum-Investing) : littérature sur le momentum relatif ; ne valide pas le réglage de deux jours ni le code de notre variante.
+- [AQR — Implementing Momentum: What Have We Learned?](https://www.aqr.com/insights/research/working-paper/implementing-momentum-what-have-we-learned) : mise en œuvre et frictions à examiner.
+- [Zarattini, Barbon et Aziz — A Profitable Day Trading Strategy for the U.S. Equity Market](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4729284) : recherche sur une variante ORB de cinq minutes et un univers américain plus large ; pas une validation du seul S&P 500 ou de notre exemple IA de quinze minutes.
+- [de Groot, Huij et Zhou — Another look at trading costs and short-term reversal profits](https://repub.eur.nl/pub/25718) : sensibilité du retour à la moyenne aux coûts et à la construction du portefeuille.
+- [Asness, Frazzini et Pedersen — Quality minus junk](https://link.springer.com/article/10.1007/s11142-018-9470-2) : facteur académique de qualité, notamment étudié en long-short ; pas une preuve de sélection rentable par agent IA « Buffett ».
+- [QuantConnect — Research Guide](https://www.quantconnect.com/docs/v2/writing-algorithms/key-concepts/research-guide) : biais d'anticipation et de survivance des univers historiques.
+- [LumiBot — Agent Built-In Tools](https://lumibot.lumiwealth.com/agents_builtin_tools.html) et code local : distinguer agent de recherche et agent disposant d'outils d'ordre ; les exemples doivent être vérifiés dans la version installée.
+- [Reddit / algotrading — Opening Range Breakout for Stocks in Play](https://www.reddit.com/r/algotrading/comments/1hezqql/opening_range_breakout_for_stocks_in_play_code/) : piste de discussion communautaire, sans validation indépendante de ses résultats.
 
-**Note de méthode :** avant d'implémenter une stratégie, vérifier les versions actuelles des documentations, les limites des sources de données et les conditions du compte Alpaca utilisé. Une source institutionnelle peut documenter un effet historique sans démontrer que son implémentation précise sera rentable aujourd'hui.
+Les études portent sur des implémentations, horizons, univers et coûts spécifiques. Elles fondent des hypothèses de recherche ; aucun rendement n'est transféré automatiquement à notre portefeuille.
 
-## 9. Recommandation finale
+## 8. Prochaine action
 
-Commencer par trois variantes comparables :
-
-- **Version A :** momentum relatif sur actions américaines.
-- **Version B :** momentum relatif avec filtre de tendance du marché.
-- **Version C :** version B avec règles explicites de dimensionnement des positions et d'exposition.
-
-Retenir ou éliminer ces variantes sur la base de résultats reproductibles, de tests hors échantillon, des coûts et du risque. Ajouter le breakout, le retour à la moyenne, les filtres fondamentaux et les IQ uniquement lorsque la base est fiable.
-
-**Prochaine tâche concrète :** préparer une matrice de backtests avec les paramètres, les périodes historiques, les métriques, les données nécessaires et les critères d'acceptation/rejet, puis demander à Antigravity de l'implémenter progressivement dans l'installation LumiBot existante.
-
----
+Préparer **l'étape 3 de la phase B du plan principal** : protocole d'univers S&P 500, couverture des données, quatre cycles simulés et paramètres restant à arbitrer. Ne pas commencer une adaptation de code ou une autre stratégie sans mandat explicite. Garder le mode cash-guard `disabled` pour les simulations exploratoires actuelles, avec ses réserves visibles.

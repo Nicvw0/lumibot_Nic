@@ -1,55 +1,68 @@
-# LumiBot — Synthèse de l’audit et stratégies à tester
+# LumiBot — Synthèse actualisée et décisions du mini-fonds
 
-**Source :** synthèse du rapport communiqué par l’agent Antigravity (audit du dépôt local).  
-**Environnement audité :** LumiBot 4.6.33, commit `a5f0ee6d` (branche `dev`), Python 3.13.5, Windows 11.  
-**Objectif :** réutiliser les stratégies et composants du dépôt avant d’écrire du nouveau code. **Backtests puis Alpaca Paper Trading uniquement.**
+État de référence pour poursuivre la mise au point sur actions individuelles du S&P 500.
 
-## 1. Stratégies candidates
+**Dernière mise à jour :** 30 octobre 2026  
+**Statut :** étape 2 terminée avec réserves ; prochaine étape : phase B, étape 3  
+**Public :** propriétaire du projet et agents intervenant sur les recherches
 
-| Priorité | Stratégie | Source LumiBot identifiée | État selon l’audit | Adaptation / test envisagé |
-|---|---|---|---|---|
-| **1 — Démarrage** | **Momentum relatif** | `lumibot/example_strategies/stock_momentum.py` | **B : adaptation requise** | Passer de 100 % sur un actif à une sélection Top N d’ETF ; comparer fenêtres 60/90/120 jours et Top 1/3/5. |
-| **2 — Variante du momentum** | **Filtre de tendance SPY / SMA 200** | `lumibot/indicators/builtin.py` (`SMAIndicator`) | **C : composant disponible** | Comparer momentum seul vs momentum avec filtre ; tester cash ou ETF défensif lorsque SPY est sous sa SMA 200. |
-| **3 — Stratégie distincte** | **Breakout** | `ai_opening_range_breakout.py`, `donchian_midline.py` | **B/C : exemple IA / composant** | Étudier une version déterministe sur ETF/actions ; définir précisément entrée, sortie et horizon. |
-| **4 — Stratégie distincte** | **Mean reversion** | `ccxt_backtesting_example.py` | **B : adaptation requise** | Adapter les bandes de Bollinger de la crypto vers les actions/ETF ; vérifier les données et les règles de sortie. |
-| **Plus tard** | **Agents IA** | `agent_alpaca_news_builtin.py`, `ai_trading_team_ray_dalio_idea_meritocracy.py` | **B : exemples disponibles** | Tester leur valeur ajoutée *après* une référence déterministe ; aucun ordre IA sans validation Python. |
+## 1. Périmètre décidé
 
-**A/B/C :** A = réutilisable presque tel quel ; B = adaptation nécessaire ; C = composants disponibles mais stratégie à assembler. Les classifications reflètent le rapport de l’agent, pas une validation indépendante.
+- **Actions individuelles du S&P 500**, marché américain. Utiliser l'appartenance à l'indice à la date simulée. Pas de portefeuille d'ETF dans cette première version ; SPY reste possible comme benchmark ou indicateur.
+- **Quatre activations par séance normale** : avant ouverture, après ouverture, en cours de séance et avant clôture. Les heures exactes et les règles des séances écourtées restent à définir.
+- Chaque activation peut analyser, confirmer, agir ou ne rien faire. Quatre activations ne forcent ni quatre achats ni quatre rééquilibrages. Des positions peuvent être conservées plusieurs jours.
+- Backtesting d'abord, puis Alpaca Paper après validation. Aucun ordre Paper/Live autorisé par ces documents ; aucune modification de code implicitement déclenchée par le plan.
+- IQ pour les recherches/propositions, Python pour la vérification des critères et l'autorisation finale d'ordre.
+- **Garde-fou cash désactivé pour les recherches exploratoires**, avec cash négatif et emprunt implicite signalés. Réévaluation des modes actifs lorsqu'une stratégie pertinente sera trouvée ; gestion des refus et dimensionnement à traiter avant une comparaison opérationnelle.
 
-## 2. Composants transversaux à réutiliser
+Le [plan principal](plan_mini_fonds_lumibot.md) contient la numérotation de référence. Le [document des stratégies](strategies_trading_mini_fonds_lumibot.md) détaille les hypothèses, sources et critères.
 
-- **Rééquilibrage / poids cibles :** `drift_rebalancer.py` et `DriftRebalancerLogic` ; vérifier leur intégration avant usage.
-- **Ordres de protection :** `stock_bracket.py` (stop-loss / take-profit) ; pertinence à évaluer selon la stratégie.
-- **Planification :** `schedule_function.py` et `register_cron_callback`.
-- **Backtests / benchmarks :** `alpaca_backtesting.py`, `yahoo_backtesting.py` ; comparaison à SPY et rapports QuantStats selon configuration.
-- **Risk Gate à développer :** contrôle Python indépendant avant ordre : exposition et levier, cash disponible, données fraîches, doublons, kill switch, journalisation. La validation native `_validate_order` est insuffisante selon l’audit.
+## 2. Historique validé et réserves
 
-## 3. Première expérience proposée : momentum ETF
+L'audit initial Antigravity concernait LumiBot 4.6.33, commit `a5f0ee6d`, Python 3.13.5 et Windows. Cette référence historique n'est pas le dernier commit des modifications locales installées ; aucun nouveau hash de commit n'est affirmé ici.
 
-**Univers initial suggéré par l’agent :** SPY, QQQ, IWM, GLD, TLT, VNQ, SHV (à vérifier selon disponibilité et historique). Ces ETF ne sont **pas tous décorrélés**.
+- [x] Audit et configuration du backtesting effectués.
+- [x] Référence Buy & Hold et comparaison des sources examinées.
+- [x] **Étape 2 de la conversation : Momentum original sur SPY/VEU/AGG, 2021–2025, capital simulé 100 000 USD, deux exécutions reproductibles par fournisseur.** Sans protection : +19,53 % Yahoo / +18,84 % Alpaca ; SPY séparé : +83,65 % / +82,95 %.
+- [x] Garde-fou à trois modes construit, installé par l'utilisateur et vérifié dans le dépôt : `disabled`, `cash`, `margin` avec plafond explicite.
+- [x] Rejeu rapide avec mode sans emprunt : −2,83 % Yahoo / −2,72 % Alpaca, aucun cash négatif, mais nombreux refus non correctement gérés par les variables internes de Momentum. Ce rejeu comprend une exécution par source, pas une nouvelle preuve de reproductibilité du mode actif.
 
-**Hypothèses à tester, non paramètres optimisés :**
-- Momentum sur **60 / 90 / 120 jours** ; sélection **Top 1 / 3 / 5**.
-- Avec ou sans **filtre SPY > SMA 200**.
-- Rééquilibrage à fréquence définie ; plafond indicatif **30 % par ligne**, tampon de cash **10 %** (cohérence à vérifier avec Top N).
-- Comparer à **SPY buy-and-hold**, en tenant compte des frais, du slippage, du drawdown, du turnover et des périodes hors échantillon.
+**Limites des chiffres :** les positions de ce test étaient des ETF ; il ne valide pas le futur portefeuille d'actions S&P 500. Cash parfois négatif sans intérêts modélisés dans le test sans protection ; dividendes non crédités au portefeuille ; conventions de signaux et prix différentes entre Yahoo et Alpaca. La période 2021–2025 est déjà consultée et ne constitue pas un test final vierge.
 
-## 4. Blocages et vérifications avant développement
+Les rapports de preuve ont été produits dans la conversation (`rapport_final_etape_2.md`, `rapport_comparatif.md`). Ils ne sont pas supposés déjà présents dans ce dossier du dépôt. L'ancien [audit détaillé](../docs/audit_strategies_lumibot.md) doit être lu comme un historique, avec cette mise à jour.
 
-1. **Backtest complet non validé :** plusieurs essais interrompus / bloqués ; ne pas conclure que le moteur est opérationnel sur cette seule base.
-2. **Console Windows :** utiliser `PYTHONUTF8=1` et `PYTHONIOENCODING=utf-8` pour éviter l’erreur d’encodage `cp1252` signalée.
-3. **`.env` :** vérifier les valeurs factices `DATADOWNLOADER_BASE_URL` et `BACKTESTING_DATA_SOURCE` qui ont provoqué des blocages ; les corriger sans exposer les clés API.
-4. **Tests unitaires :** 43/43 réussis selon l’agent ; cela ne remplace pas un backtest de bout en bout.
-5. **Alpaca :** compte Paper Trading déclaré actif et prix SPY accessible ; **ne pas activer de trading réel**.
+## 3. Candidats réellement disponibles dans LumiBot
 
-## 5. Ordre de travail recommandé
+| Ordre de recherche | Candidat / source locale | Statut exact pour notre projet |
+|---|---|---|
+| 1 | Momentum relatif — `lumibot/example_strategies/stock_momentum.py` | Exemple Python disponible ; adaptation requise vers plusieurs actions S&P 500, pondérations et horizons à définir. Deux jours n'est pas un réglage validé. |
+| 2 | Tendance — `ai_researcher_trader.py` ; `SMAIndicator` | Exemple IA sur un symbole et composant SMA disponible ; règle et construction du portefeuille à préciser. |
+| 3 | Momentum avec filtre de tendance | Combinaison à construire et comparer, pas un mini-fonds déjà livré. |
+| Si intraday retenu | Breakout — `ai_opening_range_breakout.py` | Exemple IA, range de quinze minutes et cadence horaire ; données intraday et adaptation des cycles/univers nécessaires. |
+| Ultérieur | Qualité/valorisation — `ai_trading_team_warren_buffett_value.py`, `ai_trading_team_bill_ackman_concentrated.py` | Exemples IA, pas des facteurs quantitatifs validés ; données financières datées et horizon à définir. |
+| Ultérieur | Retour à la moyenne — `ccxt_backtesting_example.py` | Exemple crypto à bandes de Bollinger, à adapter ; pas une stratégie actions prête à exécuter. |
+| Architecture complémentaire | `ai_trading_team_bull_bear_large_cap_stocks.py` | Recherche → arguments favorables → objections → décision ; ce flux d'agents n'est pas à lui seul un avantage économique démontré. |
 
-- [ ] **Étape 0 :** faire aboutir un backtest d’un exemple LumiBot inchangé, avec rapport de performance.
-- [ ] **Étape 1 :** backtester le momentum existant comme référence.
-- [ ] **Étape 2 :** tester Top N ETF et les fenêtres de momentum, sans changer plusieurs paramètres simultanément.
-- [ ] **Étape 3 :** comparer avec/sans filtre SMA 200 et règles de rééquilibrage.
-- [ ] **Étape 4 :** ajouter et tester le Risk Gate déterministe ; vérifier les refus d’ordres.
-- [ ] **Étape 5 :** tester séparément Breakout puis Mean Reversion ; comparer sur les mêmes périodes et hypothèses de coûts.
-- [ ] **Étape 6 :** envisager les agents IA seulement après validation des stratégies déterministes et passage prolongé en paper trading.
+Les fichiers abrégés de ce tableau appartiennent à `lumibot/example_strategies/`. Les indicateurs se trouvent dans `lumibot/indicators/builtin.py`. Les références et limites de la recherche sont détaillées dans le document des stratégies.
 
-**Principe directeur :** réutiliser le code du dépôt, modifier le minimum, mesurer chaque changement, puis décider sur des résultats robustes — jamais sur un seul backtest favorable.
+## 4. Composants transversaux et vérifications
+
+- **Planification :** `schedule_function.py` montre `register_cron_callback`, mais cette méthode est **ignorée en backtest** dans cette installation. Il faut prouver les quatre cycles avec l'horloge simulée, les données adéquates et le calendrier America/New_York ; ne pas déclarer le problème résolu par le seul exemple cron.
+- **Ordres/protection :** `stock_bracket.py`, `stock_limit_and_trailing_stops.py` et le rééquilibrage sont des composants d'exécution ; leur compatibilité avec une candidate reste à tester. Le garde-fou actuel en mode actif ne couvre pas les brackets ou dérivés.
+- **Garde-fou installé :** [CASH_GUARD.md](../docs/CASH_GUARD.md). Périmètre : ordres simples long-only actions/ETF en backtest, réservations et contrôle au prix d'exécution. Il ne protège pas Paper/Live ni tous les événements de trésorerie. Il est distinct du Risk Gate complet restant à construire.
+- **Modes :** `disabled` pour l'exploration actuelle ; `cash` sans emprunt ; `margin` avec montant d'emprunt explicite. Aucun mode actif n'est choisi automatiquement par la mise à jour de ces documents.
+- **Suivi des ordres :** positions basées sur les exécutions confirmées ; différencier refus, attente, annulation et exécution partielle. Ne pas considérer une soumission comme un achat réussi.
+- **Données :** membres historiques S&P 500, titres retirés et changements de ticker ; historique préalable réel ; absence de données futures ; dividendes/splits/coûts décrits. Des barres journalières ne prouvent pas quatre exécutions intraday.
+- **Qualification :** 59 tests hors ligne du correctif cash réussis ; deux tests existants de rapports dépendant du réseau ont échoué aussi sur la version non modifiée. Ces chiffres ne certifient ni toute la suite LumiBot ni les brokers connectés.
+
+## 5. Suite du travail
+
+1. **Phase B, étape 3 :** protocole S&P 500, qualité et granularité des données, quatre activations et horaires à arbitrer.
+2. **Étapes 4–6 :** référence Momentum actions, tendance puis combinaison ; une modification logique par expérience.
+3. **Phase C :** robustesse, test final indépendant, sélection d'une candidate, gestion d'exécution et réévaluation du garde-fou ; Risk Gate Python avant exploitation.
+4. **Phase D :** historisation, interface, qualification des contrôles connectés puis observation en Paper.
+5. **Phase E :** breakout conditionnel, retour à la moyenne, qualité/valorisation, agents complémentaires et hébergement selon les décisions futures.
+
+**À ne plus reprendre comme objectif actif :** l'ancien panier d'ETF, une étape 2 encore déclarée bloquée, ou quatre cycles repoussés à une fonctionnalité optionnelle tardive. Les ETF des tests antérieurs restent uniquement une référence historique.
+
+L'utilisateur réalise lui-même les commits et envois GitHub. Aucun commit, push, déploiement, lancement d'agent facturé ou ordre de trading n'est déclenché par ces documents.

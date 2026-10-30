@@ -561,6 +561,7 @@ class _Strategy:
         lumiwealth_api_key=None,
         include_cash_positions=False,
         synchronize_broker_on_start=True,
+        cash_guard=None,
         **kwargs,
     ):
         """Initializes a Strategy object.
@@ -1035,6 +1036,12 @@ class _Strategy:
                 debit_rate_annual=cash_financing_cfg.get("debit_rate_annual"),
             )
 
+        if cash_guard is not None and not self.is_backtesting:
+            raise NotImplementedError("cash_guard currently supports BacktestingBroker only")
+        register_cash_guard = getattr(self.broker, "_register_cash_guard", None)
+        if callable(register_cash_guard):
+            register_cash_guard(self, cash_guard)
+            self.log_message("Cash guard: %s" % self.broker.get_cash_guard_summary(self))
         self._strategy_returns_df = None
         self._benchmark_returns_df = None
 
@@ -2131,6 +2138,17 @@ class _Strategy:
         return normalized in ("sell", "sell_short", "sell_to_close", "sell_to_open")
 
     def _update_cash(self, order_or_side, quantity, price, multiplier):
+        state = getattr(self.broker, "_cash_guards", {}).get(self.name)
+        if state is None or not state[1].enabled:
+            return self._update_cash_unchecked(order_or_side, quantity, price, multiplier)
+        guard = state[1]
+        with guard.lock:
+            result = self._update_cash_unchecked(order_or_side, quantity, price, multiplier)
+            if isinstance(order_or_side, Order):
+                guard.acknowledge_fill(order_or_side, quantity, price, multiplier)
+            return result
+
+    def _update_cash_unchecked(self, order_or_side, quantity, price, multiplier):
         """update the self.cash"""
         with self._executor.lock:
             cash_val = self.cash # Calls property

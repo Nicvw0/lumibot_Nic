@@ -1007,3 +1007,11 @@ OHLCV raises an error rather than fabricating prices. Local publication is atomi
 Each concurrent writer publishes a complete month, never a partial window.
 `historyCache` dataframe attributes expose lookup, provider, and write timing
 separately from cache hits and original fetch time.
+
+
+## Opt-in equity cash guard
+
+The shared BacktestingBroker equity order funding policy is documented in
+`CASH_GUARD.md`. Modes are `disabled`, `cash` and bounded `margin`. It reserves
+pending order funds and rechecks actual fills, including asynchronous cash
+notifications. This is not a live broker or derivative buying-power model.
